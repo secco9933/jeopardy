@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jeopardy AI</title>
+<style>
+  :root {
+    --blue: #1a56a0;
+    --blue-dark: #0d3d7a;
+    --blue-light: #e8f0fb;
+    --blue-mid: #2d6dbf;
+    --gold: #f0b429;
+    --gold-dark: #b07d0a;
+    --bg: #0a1628;
+    --surface: #112240;
+    --surface2: #1a3050;
+    --text: #e8eef8;
+    --text-muted: #8aa0c0;
+    --green: #22c55e;
+    --red: #ef4444;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 2px solid var(--gold);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--gold);
+    text-transform: uppercase;
+  }
+  header span {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  main {
+    flex: 1;
+    padding: 24px 16px;
+    max-width: 700px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ---- FORM ---- */
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+  }
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+    border: 1px solid var(--surface2);
+  }
+  .form-group { margin-bottom: 12px; }
+  .form-group:last-child { margin-bottom: 0; }
+  .form-group label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+  }
+  .form-group input, .form-group select {
+    width: 100%;
+    padding: 10px 13px;
+    font-size: 15px;
+    background: var(--surface2);
+    border: 1px solid #2a4060;
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus, .form-group select:focus {
+    border-color: var(--blue-mid);
+  }
+  .form-group input::placeholder { color: var(--text-muted); opacity: 0.6; }
+
+  .teams-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 6px;
+    padding: 12px 20px;
+    font-size: 15px; font-weight: 600;
+    border-radius: var(--radius-sm);
+    border: none; cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn-primary { background: var(--gold); color: #0a1628; }
+  .btn-primary:hover:not(:disabled) { background: #e0a800; }
+  .btn-blue { background: var(--blue); color: #fff; }
+  .btn-blue:hover:not(:disabled) { background: var(--blue-dark); }
+  .btn-ghost { background: var(--surface2); color: var(--text); }
+  .btn-ghost:hover:not(:disabled) { background: #253a58; }
+  .btn-success { background: var(--green); color: #fff; }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-full { width: 100%; }
+
+  .error { color: #f87171; font-size: 13px; margin-top: 8px; }
+
+  /* ---- LOADING ---- */
+  .loading-wrap {
+    text-align: center;
+    padding: 60px 0;
+  }
+  .loader {
+    width: 44px; height: 44px;
+    border: 3px solid var(--surface2);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 20px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-wrap p { color: var(--text-muted); font-size: 15px; }
+
+  /* ---- BOARD ---- */
+  .board-wrap { margin-bottom: 16px; }
+  .board-header {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 5px;
+    margin-bottom: 5px;
+  }
+  .cat-cell {
+    background: var(--blue-dark);
+    border-radius: var(--radius-sm);
+    padding: 10px 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #c8d8f0;
+    min-height: 54px;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1.3;
+  }
+  .board-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 5px;
+  }
+  .cell-btn {
+    background: var(--blue);
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--gold);
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0;
+    aspect-ratio: 1.5/1;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+  .cell-btn:hover:not(:disabled) { background: var(--blue-mid); transform: scale(1.03); }
+  .cell-btn:active:not(:disabled) { transform: scale(0.97); }
+  .cell-btn:disabled { background: var(--surface2); color: transparent; cursor: default; transform: none; }
+
+  /* ---- SCORES ---- */
+  .scores-bar {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .score-card {
+    flex: 1; min-width: 70px;
+    background: var(--surface);
+    border: 1px solid var(--surface2);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    text-align: center;
+  }
+  .score-card .s-name { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .score-card .s-pts { font-size: 20px; font-weight: 700; color: var(--gold); }
+  .score-card.leading { border-color: var(--gold); }
+
+  /* ---- QUESTION ---- */
+  .q-meta {
+    font-size: 12px;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .q-text {
+    font-size: 20px;
+    line-height: 1.5;
+    color: var(--text);
+    margin-bottom: 20px;
+  }
+  .answer-block {
+    background: var(--surface2);
+    border-left: 3px solid var(--gold);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+  }
+  .answer-block .a-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .answer-block .a-text { font-size: 17px; font-weight: 600; color: var(--text); }
+
+  .team-select-label { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+  .team-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .t-btn {
+    padding: 8px 16px;
+    font-size: 13px; font-weight: 600;
+    background: var(--surface2);
+    border: 1px solid #2a4060;
+    border-radius: 20px;
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .t-btn:hover { background: #253a58; }
+  .t-btn.selected { background: var(--blue); border-color: var(--blue-mid); color: #fff; }
+
+  .action-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+  /* ---- WINNER ---- */
+  .winner-wrap { text-align: center; padding: 40px 0; }
+  .trophy { font-size: 60px; margin-bottom: 12px; }
+  .winner-label { font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+  .winner-name { font-size: 32px; font-weight: 700; color: var(--gold); margin: 8px 0 28px; }
+  .podium { max-width: 320px; margin: 0 auto 28px; display: flex; flex-direction: column; gap: 8px; }
+  .podium-row {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    padding: 10px 16px;
+    border: 1px solid var(--surface2);
+  }
+  .podium-row.first { border-color: var(--gold); }
+  .podium-row .p-name { font-size: 15px; font-weight: 600; }
+  .podium-row .p-score { font-size: 17px; font-weight: 700; color: var(--gold); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Jeopardy <span style="color:var(--gold)">AI</span></h1>
+  <span id="header-sub"></span>
+</header>
+
+<main>
+
+  <!-- SETUP -->
+  <div id="s-setup" class="screen active">
+    <div class="card">
+      <div class="section-title">Categorie</div>
+      <div class="form-group"><label>Categoria 1</label><input id="cat0" type="text" placeholder="es. Storia d'Italia"></div>
+      <div class="form-group"><label>Categoria 2</label><input id="cat1" type="text" placeholder="es. Sport"></div>
+      <div class="form-group"><label>Categoria 3</label><input id="cat2" type="text" placeholder="es. Cinema"></div>
+      <div class="form-group"><label>Categoria 4</label><input id="cat3" type="text" placeholder="es. Scienza"></div>
+      <div class="form-group"><label>Categoria 5</label><input id="cat4" type="text" placeholder="es. Musica"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Squadre</div>
+      <div class="form-group">
+        <label>Numero di squadre</label>
+        <select id="num-teams">
+          <option value="2">2 squadre</option>
+          <option value="3">3 squadre</option>
+          <option value="4">4 squadre</option>
+          <option value="5">5 squadre</option>
+          <option value="6">6 squadre</option>
+        </select>
+      </div>
+      <div id="team-names-grid" class="teams-grid"></div>
+    </div>
+
+    <button class="btn btn-primary btn-full" id="btn-generate">⚡ Genera il tabellone</button>
+    <p class="error" id="setup-error"></p>
+  </div>
+
+  <!-- LOADING -->
+  <div id="s-loading" class="screen">
+    <div class="loading-wrap">
+      <div class="loader"></div>
+      <p>L'AI sta generando le domande…</p>
+    </div>
+  </div>
+
+  <!-- BOARD -->
+  <div id="s-board" class="screen">
+    <div id="scores-bar" class="scores-bar"></div>
+    <div class="board-wrap">
+      <div class="board-header" id="board-header"></div>
+      <div class="board-grid" id="board-grid"></div>
+    </div>
+    <button class="btn btn-ghost btn-full" id="btn-end" style="font-size:12px;padding:8px;">Termina partita</button>
+  </div>
+
+  <!-- QUESTION -->
+  <div id="s-question" class="screen">
+    <div class="card">
+      <div class="q-meta" id="q-meta"></div>
+      <div class="q-text" id="q-text"></div>
+      <div id="ans-block" class="answer-block" style="display:none;">
+        <div class="a-label">Risposta</div>
+        <div class="a-text" id="q-answer"></div>
+      </div>
+      <button class="btn btn-blue btn-full" id="btn-show-ans">Mostra risposta</button>
+    </div>
+
+    <div id="assign-ui" style="display:none;">
+      <div class="card">
+        <div class="team-select-label">Quale squadra risponde?</div>
+        <div class="team-btns" id="team-btns"></div>
+        <div class="action-row">
+          <button class="btn btn-success" id="btn-correct" disabled id="btn-correct">✓ Corretta</button>
+          <button class="btn btn-danger" id="btn-wrong" disabled>✗ Sbagliata</button>
+          <button class="btn btn-ghost" id="btn-skip">— Nessuno</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WINNER -->
+  <div id="s-winner" class="screen">
+    <div class="winner-wrap">
+      <div class="trophy">🏆</div>
+      <div class="winner-label">Vincitore</div>
+      <div class="winner-name" id="winner-name"></div>
+      <div class="podium" id="podium"></div>
+      <button class="btn btn-primary" id="btn-restart">Nuova partita</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const VALUES = [100, 200, 300, 400, 500];
+let state = {};
+
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function renderTeamInputs() {
+  const n = parseInt(document.getElementById('num-teams').value);
+  const grid = document.getElementById('team-names-grid');
+  const prev = {};
+  grid.querySelectorAll('input').forEach((el, i) => prev[i] = el.value);
+  grid.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const val = prev[i] || `Squadra ${i + 1}`;
+    const div = document.createElement('div');
+    div.className = 'form-group';
+    div.style.marginBottom = '0';
+    div.innerHTML = `<label>Squadra ${i + 1}</label><input type="text" id="tname${i}" value="${val}">`;
+    grid.appendChild(div);
+  }
+}
+
+document.getElementById('num-teams').addEventListener('change', renderTeamInputs);
+renderTeamInputs();
+
+document.getElementById('btn-generate').addEventListener('click', async () => {
+  const cats = [0,1,2,3,4].map(i => document.getElementById(`cat${i}`).value.trim());
+  const err = document.getElementById('setup-error');
+  if (cats.some(c => !c)) { err.textContent = 'Inserisci tutte e 5 le categorie.'; return; }
+  err.textContent = '';
+
+  const n = parseInt(document.getElementById('num-teams').value);
+  const teams = Array.from({length: n}, (_, i) => {
+    const el = document.getElementById(`tname${i}`);
+    return (el && el.value.trim()) || `Squadra ${i + 1}`;
+  });
+
+  state = { cats, teams, scores: new Array(n).fill(0), questions: [], used: new Set(), cur: null, selTeam: null };
+  show('s-loading');
+
+  try {
+    const prompt = `Sei il generatore di domande per un gioco Jeopardy in italiano.
+Genera domande per 5 categorie: ${cats.map((c,i)=>`${i+1}. ${c}`).join(', ')}.
+Per ogni categoria crea 5 domande. La difficoltà deve essere proporzionale al valore: 100=facilissima, 200=facile, 300=media, 400=difficile, 500=molto difficile.
+Le domande devono essere varie, interessanti e adatte a un quiz serale tra amici adulti.
+
+Rispondi SOLO con JSON valido, nessun testo prima o dopo, nessun backtick.
+Formato esatto:
+{"questions":[{"cat":0,"value":100,"q":"testo domanda","a":"risposta breve"},...]}`; 
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    const text = data.content.map(b => b.text || '').join('').replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(text);
+    state.questions = parsed.questions;
+    renderBoard();
+    show('s-board');
+  } catch (e) {
+    show('s-setup');
+    document.getElementById('setup-error').textContent = 'Errore nella generazione. Controlla la connessione e riprova.';
+  }
+});
+
+function getQ(cat, value) {
+  return state.questions.find(q => q.cat === cat && q.value === value);
+}
+
+function renderBoard() {
+  const header = document.getElementById('board-header');
+  const grid = document.getElementById('board-grid');
+  header.innerHTML = state.cats.map(c => `<div class="cat-cell">${c}</div>`).join('');
+  grid.innerHTML = '';
+  VALUES.forEach(val => {
+    state.cats.forEach((_, ci) => {
+      const key = `${ci}-${val}`;
+      const btn = document.createElement('button');
+      btn.className = 'cell-btn';
+      btn.dataset.cat = ci;
+      btn.dataset.val = val;
+      if (state.used.has(key)) {
+        btn.disabled = true;
+      } else {
+        btn.textContent = val;
+        btn.addEventListener('click', () => openQ(ci, val));
+      }
+      grid.appendChild(btn);
+    });
+  });
+  renderScores();
+}
+
+function renderScores() {
+  const max = Math.max(...state.scores);
+  document.getElementById('scores-bar').innerHTML = state.teams.map((t, i) =>
+    `<div class="score-card${state.scores[i] === max && max > 0 ? ' leading' : ''}">
+      <div class="s-name">${t}</div>
+      <div class="s-pts">${state.scores[i]}</div>
+    </div>`
+  ).join('');
+}
+
+function openQ(catIdx, value) {
+  const q = getQ(catIdx, value);
+  if (!q) return;
+  state.cur = { catIdx, value };
+  state.selTeam = null;
+
+  document.getElementById('q-meta').textContent = `${state.cats[catIdx]} — ${value} punti`;
+  document.getElementById('q-text').textContent = q.q;
+  document.getElementById('ans-block').style.display = 'none';
+  document.getElementById('q-answer').textContent = q.a;
+  document.getElementById('assign-ui').style.display = 'none';
+  document.getElementById('btn-show-ans').style.display = 'flex';
+  document.getElementById('btn-correct').disabled = true;
+  document.getElementById('btn-wrong').disabled = true;
+
+  document.getElementById('btn-show-ans').onclick = () => {
+    document.getElementById('ans-block').style.display = 'block';
+    document.getElementById('assign-ui').style.display = 'block';
+    document.getElementById('btn-show-ans').style.display = 'none';
+    renderTeamBtns();
+  };
+
+  show('s-question');
+}
+
+function renderTeamBtns() {
+  const container = document.getElementById('team-btns');
+  container.innerHTML = state.teams.map((t, i) =>
+    `<button class="t-btn" data-i="${i}">${t}</button>`
+  ).join('');
+  container.querySelectorAll('.t-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('.t-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      state.selTeam = parseInt(btn.dataset.i);
+      document.getElementById('btn-correct').disabled = false;
+      document.getElementById('btn-wrong').disabled = false;
+    });
+  });
+}
+
+function closeQ(delta) {
+  if (state.selTeam !== null) {
+    state.scores[state.selTeam] = Math.max(0, state.scores[state.selTeam] + delta);
+  }
+  state.used.add(`${state.cur.catIdx}-${state.cur.value}`);
+  if (state.used.size >= 25) { showWinner(); return; }
+  renderBoard();
+  show('s-board');
+}
+
+document.getElementById('btn-correct').addEventListener('click', () => closeQ(state.cur.value));
+document.getElementById('btn-wrong').addEventListener('click', () => closeQ(-state.cur.value));
+document.getElementById('btn-skip').addEventListener('click', () => closeQ(0));
+document.getElementById('btn-end').addEventListener('click', showWinner);
+
+function showWinner() {
+  const sorted = state.teams.map((t, i) => ({ t, s: state.scores[i] })).sort((a, b) => b.s - a.s);
+  document.getElementById('winner-name').textContent = sorted[0].t;
+  const medals = ['🥇', '🥈', '🥉'];
+  document.getElementById('podium').innerHTML = sorted.map((x, i) =>
+    `<div class="podium-row${i === 0 ? ' first' : ''}">
+      <span class="p-name">${medals[i] || `${i+1}.`} ${x.t}</span>
+      <span class="p-score">${x.s}</span>
+    </div>`
+  ).join('');
+  show('s-winner');
+}
+
+document.getElementById('btn-restart').addEventListener('click', () => {
+  state = {};
+  renderTeamInputs();
+  show('s-setup');
+});
+</script>
+</body>
+</html>
