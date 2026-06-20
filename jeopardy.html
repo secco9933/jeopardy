@@ -130,6 +130,8 @@
   <h1>Jeopardy <span style="color:var(--gold)">AI</span></h1>
 </header>
 
+<div id="global-error" style="display:none;background:#A32D2D;color:#fff;padding:12px 16px;font-size:13px;font-family:monospace;"></div>
+
 <main>
 
   <!-- SCREEN 0: API KEY -->
@@ -272,6 +274,11 @@ try {
 </script>
 
 <script>
+// Cattura-errori globale: mostra a schermo qualsiasi crash invece di lasciare la pagina vuota
+window.addEventListener('error', function(ev) {
+  var box = document.getElementById('global-error');
+  if (box) { box.style.display = 'block'; box.textContent = '⚠ Errore: ' + (ev.message || ev.error) + (ev.filename ? ' (' + ev.filename.split('/').pop() + ':' + ev.lineno + ')' : ''); }
+});
 const VALUES = [100, 200, 300, 400, 500];
 let state = {};
 let apiKey = '';
@@ -315,12 +322,19 @@ try {
 } catch (e) {
   console.warn('localStorage non accessibile:', e.message);
 }
-if (savedKey) {
-  apiKey = savedKey;
-  renderTeamInputs();
-  show('s-setup');
-} else {
-  show('s-apikey');
+try {
+  if (savedKey) {
+    apiKey = savedKey;
+    renderTeamInputs();
+    show('s-setup');
+  } else {
+    show('s-apikey');
+  }
+} catch (e) {
+  // Se l'avvio fallisce, mostro comunque la schermata della key
+  document.getElementById('s-apikey').classList.add('active');
+  const box = document.getElementById('global-error');
+  if (box) { box.style.display = 'block'; box.textContent = '⚠ Errore avvio: ' + e.message; }
 }
 
 document.getElementById('btn-confirm-key').addEventListener('click', () => {
