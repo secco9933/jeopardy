@@ -181,7 +181,7 @@
   <div id="s-loading" class="screen">
     <div class="loading-wrap">
       <div class="loader"></div>
-      <p>L'AI sta cercando e verificando le domande…<br><span style="font-size:13px;opacity:0.7;">può richiedere qualche secondo in più</span></p>
+      <p>L'AI sta generando le domande per ogni categoria…</p>
     </div>
   </div>
 
@@ -308,8 +308,13 @@ async function refreshFbStats() {
 }
 
 // ---- API KEY SCREEN ----
-// Carica key salvata
-const savedKey = localStorage.getItem('jeopardy_api_key');
+// Carica key salvata (localStorage può fallire su file://, quindi proteggo)
+let savedKey = null;
+try {
+  savedKey = localStorage.getItem('jeopardy_api_key');
+} catch (e) {
+  console.warn('localStorage non accessibile:', e.message);
+}
 if (savedKey) {
   apiKey = savedKey;
   renderTeamInputs();
@@ -326,7 +331,7 @@ document.getElementById('btn-confirm-key').addEventListener('click', () => {
     return;
   }
   apiKey = key;
-  localStorage.setItem('jeopardy_api_key', key);
+  try { localStorage.setItem('jeopardy_api_key', key); } catch(e) {}
   err.textContent = '';
   renderTeamInputs();
   show('s-setup');
@@ -355,10 +360,13 @@ function renderTeamInputs() {
 document.getElementById('num-teams').addEventListener('change', renderTeamInputs);
 
 document.getElementById('btn-generate').addEventListener('click', async () => {
+  const genBtn = document.getElementById('btn-generate');
+  if (genBtn.disabled) return; // blocco anti doppio-click
   const cats = [0,1,2,3,4].map(i => document.getElementById(`cat${i}`).value.trim());
   const err = document.getElementById('setup-error');
   if (cats.some(c => !c)) { err.textContent = 'Inserisci tutte e 5 le categorie.'; return; }
   err.textContent = '';
+  genBtn.disabled = true;
 
   const n = parseInt(document.getElementById('num-teams').value);
   const teams = Array.from({length: n}, (_, i) => {
@@ -370,8 +378,14 @@ document.getElementById('btn-generate').addEventListener('click', async () => {
   show('s-loading');
 
   try {
-    // Carico i feedback delle partite precedenti per calibrare l'AI
-    const fbContext = await loadFeedbackContext();
+    // Carico i feedback delle partite precedenti (con timeout: non deve mai bloccare la generazione)
+    let fbContext = '';
+    try {
+      fbContext = await Promise.race([
+        loadFeedbackContext(),
+        new Promise(resolve => setTimeout(() => resolve(''), 4000))
+      ]);
+    } catch (e) { fbContext = ''; }
     // Una chiamata per categoria, in parallelo: il modello resta concentrato su un solo tema
     const promises = cats.map((cat, catIdx) => generateCategory(cat, catIdx, fbContext));
     const results = await Promise.all(promises);
@@ -385,6 +399,8 @@ document.getElementById('btn-generate').addEventListener('click', async () => {
   } catch (e) {
     show('s-setup');
     document.getElementById('setup-error').textContent = 'Errore: ' + (e.message || 'Controlla la connessione e riprova.');
+  } finally {
+    document.getElementById('btn-generate').disabled = false;
   }
 });
 
@@ -435,7 +451,7 @@ async function generateCategory(cat, catIdx, fbContext) {
 
 REGOLE:
 1. Ogni singola domanda DEVE riguardare "${cat}". Non sconfinare MAI in altri argomenti. Se "${cat}" è un tema di nicchia, fai domande più semplici ma sempre su "${cat}".
-2. ★ VERIFICA SUL WEB ★ — Usa lo strumento di ricerca web per controllare OGNI fatto specifico (nomi, vere identità anagrafiche, date, titoli di brani/film/opere, luoghi) PRIMA di scrivere la domanda. Non inventare MAI dettagli: se la ricerca non conferma un dettaglio, non includerlo. Genera SOLO domande la cui risposta è confermata da fonti affidabili.
+2. ★ NON INVENTARE ★ — Includi solo fatti di cui sei certo. NON aggiungere dettagli "decorativi" rischiosi come veri nomi anagrafici, date precise, soprannomi o numeri specifici se non sei assolutamente sicuro: nel dubbio, ometti il dettaglio e fai una domanda più semplice e diretta. Meglio una domanda facile e corretta che una difficile e sbagliata.
 3. Evita classifiche, record o statistiche che cambiano nel tempo.
 4. Le 5 domande hanno difficoltà crescente in base al valore:
    - 100: facilissima, la sa chiunque conosca un po' "${cat}"
@@ -459,9 +475,8 @@ Formato esatto:
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 2500,
-      messages: [{ role: 'user', content: prompt }],
-      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }]
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: prompt }]
     })
   });
   const data = await res.json();
@@ -652,7 +667,7 @@ document.getElementById('btn-restart').addEventListener('click', () => {
 });
 
 document.getElementById('btn-forget-key').addEventListener('click', () => {
-  localStorage.removeItem('jeopardy_api_key');
+  try { localStorage.removeItem('jeopardy_api_key'); } catch(e) {}
   apiKey = '';
   state = {};
   document.getElementById('api-key').value = '';
